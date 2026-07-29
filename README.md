@@ -13,12 +13,6 @@ This repository provides a Docker image for running a Project Zomboid Dedicated 
 
 ## Pulling from DockerHub
 
-## FOR BUILD 42
-
-   ```bash
-   docker pull docker.io/etheth888/project-zomboid-arm64:unstable
-   ```
-
 1. If using Podman
 
    ```bash
@@ -59,11 +53,6 @@ To build the Docker image, follow these steps:
 
 Once you've built or pulled the Docker image, you can run the container using the following steps:
 
-## FOR BUILD 42
-
-   ```bash
-   docker run -it --name zomboid-server -p 16261:16261/udp -p 16262:16262/udp -p 27015:27015/tcp project-zomboid-arm64:unstable
-   ```
 
 1. Run the Project Zomboid container:
 
@@ -75,18 +64,21 @@ Once you've built or pulled the Docker image, you can run the container using th
    When you start the container the steamcmd runs and downloads Project Zomboid Dedicated Server automatically.
    The server is downloaded to /home/steam/Zomboid/
 
-## FOR BUILD 42
-
 Edit the ProjectZomboid64.json to include these arguments:
 
    ```bash
    nano ProjectZomboid64.json
    ```
 
-May need to remove -XX:+UseZGC flag
+I was able to get it to run with only UseG1GC. Remove UseZGC.
 
    ```bash
    "-XX:+UseG1GC",
+   ```
+
+This might help with stability.
+
+   ```bash
    "-Dsun.reflect.noInflation=true",
    "-Djdk.reflect.useDirectMethodHandle=false",
    "-XX:CompileCommand=exclude,java/lang/Class,reflectionData",
@@ -95,7 +87,7 @@ May need to remove -XX:+UseZGC flag
 2. Start the server to generate server files
 
    ```bash
-   FEXInterpreter ./start-server.sh
+   FEX ./start-server.sh
    ```
 3. Close the server and make changes you want in /home/steam/Zomboid/Server/
 
