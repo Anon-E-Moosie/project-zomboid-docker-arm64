@@ -1,8 +1,9 @@
-# === STAGE 1: BUILDER (The "Heavy" Lifting) ===
-FROM ubuntu:22.04 AS builder
+# FEX
+# === STAGE 1: BUILDER ===
+FROM arm64v8/ubuntu:25.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install necessary dependencies
+# Install builder dependencies
 RUN apt-get update && apt-get install -y \
     git \
     cmake \
@@ -12,52 +13,48 @@ RUN apt-get update && apt-get install -y \
     clang \
     llvm \
     lld \
-    binfmt-support \
-    libsdl2-dev libepoxy-dev libssl-dev \
-    python3 python3-setuptools nasm python3-clang \
-    g++-x86-64-linux-gnu \
-    libstdc++-10-dev-i386-cross \
-    libstdc++-10-dev-amd64-cross \
-    libstdc++-10-dev-arm64-cross \
+    python3 python3-setuptools \
     squashfs-tools squashfuse \
+    qt6-base-dev qt6-declarative-dev \
     libc-bin \
-    expect \
+    nasm \
     curl \
     sudo \
-    fuse \
-    qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools \
-    qtdeclarative5-dev qml-module-qtquick2 \
-    wget
+    fuse3 \
+    wget && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/fex
 RUN git clone --recurse-submodules https://github.com/FEX-Emu/FEX.git && \
     cd FEX && \
-    git checkout a08a6ce5de51f5e625357ecaed46c463aa1e3c99 && \
     mkdir Build && cd Build && \
-    CC=clang CXX=clang++ cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release \
-    -DUSE_LINKER=lld -DENABLE_LTO=True -DBUILD_TESTS=False -G Ninja .. && \
+    CC=clang CXX=clang++ cmake -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DUSE_LINKER=lld \
+    -DENABLE_LTO=True \
+    #-DBUILD_THUNKS=True \
+    -DBUILD_TESTS=False -G Ninja .. && \
     ninja install
 
-# === STAGE 2: RUNNER (The Clean Image for DockerHub) ===
-FROM ubuntu:22.04
+# === STAGE 2: RUNNER ===
+FROM arm64v8/ubuntu:25.04
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Only install the libraries needed to RUN the apps
 RUN apt-get update && apt-get install -y \
-    libsdl2-2.0-0 libepoxy0 libssl3 \
-    squashfuse libc-bin \
+    libsdl3-0 \
+    libssl3t64 \
+    squashfuse \
+    libc-bin \
     curl \
     sudo \
     wget \
     vim \
     nano \
     tmux \
-    binfmt-support \
-    libqt5gui5 \
-    libqt5widgets5 && \
+    binfmt-support && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the finished FEX binaries from the builder
+# Copy the finished FEX binaries and trunks from the builder and ubuntu25.04 from rootfs
 COPY --from=builder /usr/bin/FEX* /usr/bin/
 
 # Set up the steam user
@@ -65,23 +62,23 @@ RUN useradd -m -s /bin/bash steam && \
     echo "steam ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/steam
 
 USER steam
-
 WORKDIR /home/steam
 
-# Setup RootFS and SteamCMD
-RUN mkdir -p /home/steam/.fex-emu/RootFS /home/steam/Steam /home/steam/Zomboid && \
-    wget -O /tmp/Ubuntu_22_04.tar.gz "https://www.dropbox.com/scl/fi/16mhn3jrwvzapdw50gt20/Ubuntu_22_04.tar.gz?rlkey=4m256iahwtcijkpzcv8abn7nf" && \
-    tar xzf /tmp/Ubuntu_22_04.tar.gz -C /home/steam/.fex-emu/RootFS/ && \
-    rm /tmp/Ubuntu_22_04.tar.gz && \
-    echo '{"Config":{"RootFS":"Ubuntu_22_04"}}' > /home/steam/.fex-emu/Config.json && \
+# Setup RootFS
+RUN mkdir -p /home/steam/.fex-emu/RootFS/Ubuntu_25_04 /home/steam/Steam /home/steam/Zomboid && \
+    wget -O /tmp/Ubuntu_25_04.tar.gz "https://www.dropbox.com/scl/fi/na3t1pwu1f8hwemtescjd/Ubuntu_25_04.tar.gz?rlkey=vhnm1jeuh09z6406lptn5izrx&st=eo4w8s9q&dl=1" && \
+    tar xpzf /tmp/Ubuntu_25_04.tar.gz -C /home/steam/.fex-emu/RootFS/Ubuntu_25_04/ && \
+    rm /tmp/Ubuntu_25_04.tar.gz && \
+    sudo cp /etc/resolv.conf /home/steam/.fex-emu/RootFS/Ubuntu_25_04/etc/resolv.conf && \
+    echo '{"Config":{"RootFS":"Ubuntu_25_04"}}' > /home/steam/.fex-emu/Config.json && \
     curl -sqL "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz" | tar zxvf - -C /home/steam/Steam && \
     sed -i '/ulimit -n/d' /home/steam/Steam/steamcmd.sh
 
-# Prime SteamCMD (Initializes the environment and updates SteamCMD itself)
-RUN FEXInterpreter /home/steam/Steam/steamcmd.sh +login anonymous +quit
+# Prime SteamCMD
+RUN FEX /home/steam/Steam/steamcmd.sh +login anonymous +quit
 
-# Install Project Zomboid (Using the primed environment)
-RUN FEXInterpreter /home/steam/Steam/steamcmd.sh \
+# Install Project Zomboid
+RUN FEX /home/steam/Steam/steamcmd.sh \
     +@sSteamCmdForcePlatformType linux \
     +force_install_dir /home/steam/Zomboid/ \
     +login anonymous \
@@ -93,4 +90,4 @@ EXPOSE 16261/udp 16262/udp 27015/tcp
 
 WORKDIR /home/steam/Zomboid
 
-ENTRYPOINT ["/bin/bash"]
+ENTRYPOINT [ "/bin/bash" ]

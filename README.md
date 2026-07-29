@@ -53,6 +53,7 @@ To build the Docker image, follow these steps:
 
 Once you've built or pulled the Docker image, you can run the container using the following steps:
 
+
 1. Run the Project Zomboid container:
 
    ```bash
@@ -63,10 +64,30 @@ Once you've built or pulled the Docker image, you can run the container using th
    When you start the container the steamcmd runs and downloads Project Zomboid Dedicated Server automatically.
    The server is downloaded to /home/steam/Zomboid/
 
+Edit the ProjectZomboid64.json to include these arguments:
+
+   ```bash
+   nano ProjectZomboid64.json
+   ```
+
+I was able to get it to run with only UseG1GC. Remove UseZGC.
+
+   ```bash
+   "-XX:+UseG1GC",
+   ```
+
+This might help with stability.
+
+   ```bash
+   "-Dsun.reflect.noInflation=true",
+   "-Djdk.reflect.useDirectMethodHandle=false",
+   "-XX:CompileCommand=exclude,java/lang/Class,reflectionData",
+   ```
+
 2. Start the server to generate server files
 
    ```bash
-   FEXInterpreter ./start-server.sh -Xms4g -Xmx12g
+   FEX ./start-server.sh
    ```
 3. Close the server and make changes you want in /home/steam/Zomboid/Server/
 
