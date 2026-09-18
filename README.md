@@ -5,7 +5,7 @@ This repository provides an automated Docker image for running a Project Zomboid
 Unlike upstream images, this fork automatically bakes in necessary ARM64 compatibility patches during the build process, preventing JVM crashes out of the box.  
 
 **Note**: Tested on Oracle Cloud VM.Standard.A1.Flex (4 OCPU / 24GB RAM). Performance on other ARM64 hosts may vary.
-   
+
 ---
 
 ## Pre-baked ARM64 Enhancements
@@ -31,7 +31,7 @@ Unlike upstream images, this fork automatically bakes in necessary ARM64 compati
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/Anon-E-Moosie//project-zomboid-docker-arm64.git
+git clone https://github.com/Anon-E-Moosie/project-zomboid-docker-arm64.git
 cd project-zomboid-docker-arm64
 ```
 
