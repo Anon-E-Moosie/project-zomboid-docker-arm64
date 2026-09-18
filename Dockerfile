@@ -1,4 +1,3 @@
-# FEX
 # === STAGE 1: BUILDER ===
 FROM arm64v8/ubuntu:25.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
@@ -32,7 +31,6 @@ RUN git clone --recurse-submodules https://github.com/FEX-Emu/FEX.git && \
     -DCMAKE_BUILD_TYPE=Release \
     -DUSE_LINKER=lld \
     -DENABLE_LTO=True \
-    #-DBUILD_THUNKS=True \
     -DBUILD_TESTS=False -G Ninja .. && \
     ninja install
 
@@ -54,7 +52,7 @@ RUN apt-get update && apt-get install -y \
     binfmt-support && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the finished FEX binaries and trunks from the builder and ubuntu25.04 from rootfs
+# Copy the finished FEX binaries from the builder
 COPY --from=builder /usr/bin/FEX* /usr/bin/
 
 # Set up the steam user
@@ -85,6 +83,17 @@ RUN FEX /home/steam/Steam/steamcmd.sh \
     +app_update 380870 validate \
     +quit && \
     rm -rf /home/steam/Steam/logs /home/steam/Steam/appcache
+
+# === APPLY OUR CRASH FIXES AUTOMATICALLY ===
+# 1. Swap -XX:+UseZGC to -XX:+UseG1GC to stop FEX emulation crashes
+RUN sed -i 's/-XX:+UseZGC/-XX:+UseG1GC/g' /home/steam/Zomboid/ProjectZomboid64.json
+
+# 2. Update memory allocation to 4GB min / 12GB max
+RUN sed -i 's/-Xms[0-9]*[gG]/ -Xms4g/g' /home/steam/Zomboid/ProjectZomboid64.json && \
+    sed -i 's/-Xmx[0-9]*[gG]/ -Xmx12g/g' /home/steam/Zomboid/ProjectZomboid64.json
+
+# 3. Add FEX prefix to start-server.sh so it executes properly on ARM64
+RUN sed -i 's/^\.\/ProjectZomboid64/FEX .\/ProjectZomboid64/g' /home/steam/Zomboid/start-server.sh
 
 EXPOSE 16261/udp 16262/udp 27015/tcp
 
