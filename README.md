@@ -1,169 +1,130 @@
 # project-zomboid-docker-arm64
 
-## [Get it from docker hub](https://hub.docker.com/r/etheth888/project-zomboid-arm64)
+This repository provides an automated Docker image for running a Project Zomboid Dedicated Server on ARM64 architecture (such as Oracle Cloud ARM VPS) using FEX-Emu emulation and SteamCMD.
 
-This repository provides a Docker image for running a Project Zomboid Dedicated Server using SteamCMD on ARM64 architecture. SteamCMD is a command-line utility that allows you to install and manage dedicated game servers via Steam.
+Unlike upstream images, this fork automatically bakes in necessary ARM64 compatibility patches during the build process, preventing JVM crashes out of the box.  
+
+**Note**: Tested on Oracle Cloud VM.Standard.A1.Flex (4 OCPU / 24GB RAM). Performance on other ARM64 hosts may vary.
+   
+---
+
+## Pre-baked ARM64 Enhancements
+
+- **Automatic FEX Execution:** Modifies `start-server.sh` to execute the x86_64 server binary via FEX-Emu automatically.
+- **JVM Crash Prevention:** Automatically replaces the default `-XX:+UseZGC` engine with `-XX:+UseG1GC` in `ProjectZomboid64.json` to prevent emulation crashes.
+- **Pre-configured Memory Bounds:** Sets default heap memory bounds (`-Xms4g`, `-Xmx12g`).
+
+---
 
 ## Prerequisites
 
-- A machine or environment with ARM64 architecture support.
-- Docker installed on your ARM64 system.
-- 16261-16262 Udp ports open
-- 27015 TCP port open (for steamcmd)
+- ARM64 environment (e.g., Ubuntu 22.04 / 24.04 / 25.04 on Oracle Cloud Ampere A1).
+- Docker and Docker Compose installed.
+- Required open ports on host/firewall:
+  - `16261/UDP` (Game Port)
+  - `16262/UDP` (Direct Join Port)
+  - `27015/TCP` (SteamCMD)
 
-## Pulling from DockerHub
+---
 
-1. If using Podman
+## Installation & Build
 
-   ```bash
-   podman pull docker.io/etheth888/project-zomboid-arm64:main
-   ```
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Anon-E-Moosie//project-zomboid-docker-arm64.git
+cd project-zomboid-docker-arm64
+```
 
-2. Otherwise
+### 2. Build the Docker Image
+```bash
+docker build -t zomboid-arm64:latest .
+```
 
-   ```bash
-   docker pull etheth888/project-zomboid-arm64:main
-   ```
+---
 
-## Building the Docker Image
+## Running the Server
 
-To build the Docker image, follow these steps:
+### Option A: Via Docker Run (With Persistent Volumes)
 
-1. Clone this repository to your local machine:
+To ensure game saves, server configs, and workshop items survive container updates or recreations, bind a host folder to `/home/steam/Zomboid/Zomboid`:
 
-   ```bash
-   git clone https://github.com/EthanHand/project-zomboid-docker-arm64.git
-   ```
+```bash
+docker run -it -d \
+  --name zomboid-server \
+  -p 16261:16261/udp \
+  -p 16262:16262/udp \
+  -p 27015:27015/tcp \
+  -v /Zomboid:/home/steam/Zomboid \
+  zomboid-arm64:latest
+```
 
-2. Navigate to the repository's directory:
+### Option B: Via Docker Compose
 
-   ```bash
-   cd project-zomboid-docker-arm64
-   ```
+Create a `docker-compose.yml` file in your server directory:
 
-3. Build the Docker image using the provided `Dockerfile`:
+```yaml
+version: "3.8"
 
-   ```bash
-   docker build -t project-zomboid-arm64:main .
-   ```
+services:
+  zomboid-server:
+    build: .
+    container_name: zomboid-server
+    restart: unless-stopped
+    ports:
+      - "16261:16261/udp"
+      - "16262:16262/udp"
+      - "27015:27015/tcp"
+    volumes:
+      - /Zomboid:/home/steam/Zomboid
+    tty: true
+    stdin_open: true
+```
 
-   This command will build the Docker image named "project-zomboid-arm64"
+Launch with:
+```bash
+docker compose up -d
+```
 
-## Running the Project Zomboid Docker Container
+---
 
-Once you've built or pulled the Docker image, you can run the container using the following steps:
+## Starting & Managing the Server
 
+### 1. Launching the Server
+Access the container interactive shell:
+```bash
+docker exec -it zomboid-server bash
+```
 
-1. Run the Project Zomboid container:
+Run the pre-configured start script:
+```bash
+./start-server.sh
+```
 
-   ```bash
-   docker run -it --name zomboid-server -p 16261:16261/udp -p 16262:16262/udp -p 27015:27015/tcp project-zomboid-arm64:main
-   ```
+### 2. Detaching Safely
+To disconnect from an attached container without shutting down the server process, press:
+```text
+Ctrl + P, followed by Ctrl + Q
+```
 
-   This command starts an interactive session inside the container.
-   When you start the container the steamcmd runs and downloads Project Zomboid Dedicated Server automatically.
-   The server is downloaded to /home/steam/Zomboid/
+### 3. Fixing Hung Attach Sessions
+If your terminal session gets stuck while attached to the container, kill the client attachment process safely from a separate host terminal:
+```bash
+pkill -f "docker attach zomboid-server"
+```
 
-Edit the ProjectZomboid64.json to include these arguments:
+---
 
-   ```bash
-   nano ProjectZomboid64.json
-   ```
+## Useful References
 
-I was able to get it to run with only UseG1GC. Remove UseZGC.
-
-   ```bash
-   "-XX:+UseG1GC",
-   ```
-
-This might help with stability.
-
-   ```bash
-   "-Dsun.reflect.noInflation=true",
-   "-Djdk.reflect.useDirectMethodHandle=false",
-   "-XX:CompileCommand=exclude,java/lang/Class,reflectionData",
-   ```
-
-2. Start the server to generate server files
-
-   ```bash
-   FEX ./start-server.sh
-   ```
-3. Close the server and make changes you want in /home/steam/Zomboid/Server/
-
-   ```bash
-   nano servertest.ini
-   ```
-
-## Exiting nano
-
-1. Press ctrl + x then y then enter to save with nano
-
-   ```bash
-   Ctrl + X
-   Y
-   ```
-
-## To detatch from the container
-
-   ```bash
-   Ctrl + p, Ctrl + q
-   ```
-
-## To reattach
-
-1. Find the container id
-
-   ```bash
-   docker ps
-   ```
-
-2. Reattach
-
-   ```bash
-   docker attach <container-id>
-   ```
-
-## If server hangs
-
-  ```bash
-  docker restart <container-id>
-  ```
-
-## If using Tmux
-
-Running tmux is often better for long-running processes as you can access the container while the process is being run.
-
-1. In the container run:
-
-  ```bash
-  tmux new -s Server
-  ```
-
-You can now start the server in the tmux window.
-
-## Detach from session
-  ```bash
-  Ctrl + b, d
-  ```
-
-## Attach to session
-  ```bash
-  tmux a
-  ```
-
-With tmux you should be able to exit the docker container without detaching and without it closing.
-
-## Enter exited Docker Container
-  ```bash
-  docker exec -it zomboid-server bash
-  ```
-
-## Additional Information
-
-1. If you need to make modifications to the container the root password is: `steamcmd`.
-
-- [DockerHub Image](https://hub.docker.com/r/etheth888/project-zomboid-arm64)
 - [SteamCMD Documentation](https://developer.valvesoftware.com/wiki/SteamCMD)
+- [FEX-Emu Documentation](https://fex-emu.com/)
 - [Docker Documentation](https://docs.docker.com/)
-- [Tmux Quick Reference](https://tmuxcheatsheet.com)
+
+---
+
+##  Credits & Acknowledgments
+
+* **Original Base Projects:**
+  * [TeriyakiGod/steamcmd-docker-arm64](https://github.com/TeriyakiGod/steamcmd-docker-arm64)
+  * [EthanHand/project-zomboid-docker-arm64](https://github.com/EthanHand/project-zomboid-docker-arm64)
+* **Development Note:** ARM64 compatibility patches and Dockerfile optimizations for this fork were developed with the assistance of AI.
